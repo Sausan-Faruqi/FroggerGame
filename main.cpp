@@ -9,8 +9,8 @@
 const int SCREEN_WIDTH = 800;
 const int SCREEN_HEIGHT = 750;
 const int PLAYER_SIZE = 32;
-const int CAR_WIDTH = 80;
-const int CAR_HEIGHT = 40;
+const int CAR_WIDTH = 64;
+const int CAR_HEIGHT = 64;
 const float CAR_SPEED = 3.0;
 const int FPS = 60;
 
@@ -25,12 +25,14 @@ class Player {
 public:
 
     float x, y;
-    /*ALLEGRO_BITMAP* frogSprite;*/
+    ALLEGRO_BITMAP* frogSprite;
     Player() {
         x = SCREEN_WIDTH / 2 - PLAYER_SIZE / 2;
         y = (SCREEN_HEIGHT - 80) - PLAYER_SIZE;
-        /* frogSprite = al_load_bitmap("frogSprite.png");*/
-         /*if (!frogSprite) { std::cerr << "Failed to load frog sprite." << std::endl; }*/
+         frogSprite = al_load_bitmap("frogSprite.png");
+         if (!frogSprite) {
+             std::cerr << "Failed to load frog sprite.";
+         }
     }
 
     void move(int dx, int dy) {
@@ -44,13 +46,13 @@ public:
     }
 
     void draw() {
-        /*al_draw_bitmap(frogSprite, x, y, 0);*/
+        al_draw_bitmap(frogSprite, x, y, 0);
 
-        al_draw_filled_rectangle(x, y, x + PLAYER_SIZE, y + PLAYER_SIZE, al_map_rgb(0, 255, 0));
+       /* al_draw_filled_rectangle(x, y, x + PLAYER_SIZE, y + PLAYER_SIZE, al_map_rgb(0, 255, 0));*/
 
     }
 
-    /*~Player() { al_destroy_bitmap(frogSprite); }*/
+    ~Player() { al_destroy_bitmap(frogSprite); }
 };
 
 class Car {
@@ -58,8 +60,9 @@ class Car {
 public:
     float x, y;
     float speed;
+    ALLEGRO_BITMAP* sprite;
 
-    Car(float startX, float startY, float speed) :x(startX), y(startY), speed(speed) {}
+    Car(float startX, float startY, float speed, ALLEGRO_BITMAP* carSprite) :x(startX), y(startY), speed(speed), sprite(carSprite) {}
     void update() {
         x -= speed;
         if (x + CAR_WIDTH < 0) {
@@ -67,7 +70,7 @@ public:
         }
     }
     void draw() {
-        al_draw_filled_rectangle(x, y, x + CAR_WIDTH, y + CAR_HEIGHT, al_map_rgb(255, 0, 0));
+        al_draw_bitmap(sprite, x, y, 0);
     }
 };
 
@@ -75,7 +78,8 @@ class Log {
 public:
     float x, y, speed;
     int width;
-    Log(float startX, float startY, float speed, int width) :x(startX), y(startY), speed(speed), width(width) {}
+    ALLEGRO_BITMAP* sprite;
+    Log(float startX, float startY, float speed, int width, ALLEGRO_BITMAP*logSprite) :x(startX), y(startY), speed(speed), width(width), sprite(logSprite) {}
     void update() {
         x += speed;
         if (x > SCREEN_WIDTH && speed > 0) {
@@ -87,7 +91,21 @@ public:
     }
     void draw() {
 
-        al_draw_filled_rectangle(x, y, x + width, y + CAR_HEIGHT, al_map_rgb(139, 69, 19));
+       /* al_draw_filled_rectangle(x, y, x + width, y + CAR_HEIGHT, al_map_rgb(139, 69, 19));*/
+        if (sprite) {
+            int spriteWidth = al_get_bitmap_width(sprite);
+            int drawWidth;
+            for (int i = 0; i < width; i += spriteWidth) {
+                if (i + spriteWidth > width) { drawWidth = width - i; }
+                else {
+                    drawWidth = spriteWidth;
+                }
+                al_draw_bitmap_region(sprite, 0, 0, drawWidth, CAR_HEIGHT, x + i, y, 0);
+            }
+        }
+        else {
+            al_draw_filled_rectangle(x, y, x + width, y + CAR_HEIGHT, al_map_rgb(139, 69, 19));
+        }
     }
     bool isPlayerOnLog(float px, float py, float pSize) {
         return ((py + pSize > y) && (py < y + CAR_HEIGHT) && (px + pSize > x) && (px < x + width));
@@ -99,9 +117,7 @@ public:
 
 class Game {
 private:
-    std::vector<Log>logs;
-    bool onLog = false;
-
+ 
     ALLEGRO_BITMAP* background;
     int lives = 3;
     bool gameOver = false;
@@ -114,7 +130,24 @@ private:
     bool redraw = true;
 
     Player player;
+    
+
     std::vector<Car>cars;
+    std::vector<ALLEGRO_BITMAP*>carSprites;
+
+    ALLEGRO_BITMAP* getRandomCarSprite() {
+        if (carSprites.empty()) {
+            return nullptr;
+        }
+        int index = rand() % carSprites.size();
+        return carSprites[index];
+    }
+
+    ALLEGRO_BITMAP* logSprite;
+    std::vector<Log>logs;
+    bool onLog = false;
+
+
 public:
     Game() {
         al_init();
@@ -147,14 +180,32 @@ public:
         }
 
 
-        cars.emplace_back(800, 500, CAR_SPEED);
-        cars.emplace_back(400, 450, CAR_SPEED);
-        cars.emplace_back(600, 550, CAR_SPEED + 1);
+        carSprites.push_back(al_load_bitmap("car1.png"));
+        carSprites.push_back(al_load_bitmap("car2.png"));
+        carSprites.push_back(al_load_bitmap("car3.png"));
+        carSprites.push_back(al_load_bitmap("car4.png"));
+        for (auto& sprite : carSprites) {
+            if (!sprite) {
+                std::cerr << "Failed to load car sprite." << std::endl;
+            }
+        }
 
-        logs.emplace_back(100, 150, 2.0, 150);
-        logs.emplace_back(400, 300, 2.0, 150);
-        logs.emplace_back(200, 200, -2.5, 180);
-        logs.emplace_back(600, 250, -2.5, 180);
+
+        logSprite = al_load_bitmap("log2.png");
+        if (!logSprite) {
+            std::cerr << "Failed to load log sprite." << std::endl;
+        }
+        
+        cars.emplace_back(800, 530, CAR_SPEED, getRandomCarSprite());
+        cars.emplace_back(400, 400, CAR_SPEED, getRandomCarSprite());
+        cars.emplace_back(600, 420, CAR_SPEED, getRandomCarSprite());
+        cars.emplace_back(500, 480, CAR_SPEED, getRandomCarSprite());
+
+
+        logs.emplace_back(100, 150, 2.0, 150, logSprite);
+        logs.emplace_back(400, 300, 2.0, 150, logSprite);
+        logs.emplace_back(200, 200, -2.5, 180, logSprite);
+        logs.emplace_back(600, 250, -2.5, 180, logSprite);
 
 
 
@@ -169,6 +220,11 @@ public:
         al_destroy_font(font2);
         if (background) {
             al_destroy_bitmap(background);
+        }
+
+
+        for (auto& sprite : carSprites) {
+            al_destroy_bitmap(sprite);
         }
     }
 
@@ -291,7 +347,7 @@ public:
     void draw() {
         al_clear_to_color(al_map_rgb(0, 0, 0));
 
-        // Draw the background image first
+        
         if (background) {
             al_draw_bitmap(background, 0, 0, 0);
         }
@@ -318,6 +374,11 @@ public:
 };
 
 int main() {
+    al_init();
+    al_init_image_addon();
+    srand(time(NULL));
+
+
     Game game;
     game.run();
     return 0;
